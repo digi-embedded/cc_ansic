@@ -40,6 +40,7 @@ public class Element extends Item {
         X_HEX64(27),
         BIGINT(28),
         HEXBLOB(29),
+        IPV6(30),
         ;
 
         /* special types since enum name cannot start with 0x */
@@ -147,7 +148,8 @@ public class Element extends Item {
             Type.HEX64,
             Type.X_HEX64,
             Type.BIGINT,
-            Type.HEXBLOB
+            Type.HEXBLOB,
+            Type.IPV6
             );
     private final static EnumSet<Type> requiresMax = EnumSet.of(
             Type.STRING,
