@@ -1,6 +1,7 @@
 package com.digi.connector.config;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -33,11 +34,17 @@ public class Element extends Item {
         LIST(17),
         MAC_ADDR(21),
         DATETIME(22),
-        REF_ENUM(23)
+        REF_ENUM(23),
+        UINT64(25),
+        HEX64(26),
+        X_HEX64(27),
+        BIGINT(28),
+        HEXBLOB(29),
         ;
 
-        /* special type since enum name cannot start with 0x */
+        /* special types since enum name cannot start with 0x */
         private final static String STRING_0XHEX32 = "0X_HEX32";
+        private final static String STRING_0XHEX64 = "0X_HEX64";
         private final int value;
 
         private Type(int value) {
@@ -47,6 +54,8 @@ public class Element extends Item {
         public String toUpperName() {
             if (this == X_HEX32)
                 return STRING_0XHEX32;
+            else if (this == X_HEX64)
+                return STRING_0XHEX64;
             else
                 return name();
         }
@@ -63,6 +72,8 @@ public class Element extends Item {
             try {
                 if (str.equalsIgnoreCase(STRING_0XHEX32)) {
                     return X_HEX32;
+                } else if (str.equalsIgnoreCase(STRING_0XHEX64)) {
+                    return X_HEX64;
                 } else {
                     return valueOf(str.toUpperCase());
                 }
@@ -131,14 +142,20 @@ public class Element extends Item {
             Type.X_HEX32,
             Type.FLOAT,
             Type.FQDNV4,
-            Type.FQDNV6
+            Type.FQDNV6,
+            Type.UINT64,
+            Type.HEX64,
+            Type.X_HEX64,
+            Type.BIGINT,
+            Type.HEXBLOB
             );
     private final static EnumSet<Type> requiresMax = EnumSet.of(
             Type.STRING,
             Type.MULTILINE_STRING,
             Type.PASSWORD,
             Type.FQDNV4,
-            Type.FQDNV6
+            Type.FQDNV6,
+            Type.HEXBLOB
             );
 
     private static final Set<String> validOnOff = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(new String[] { "on","off" })));
@@ -150,6 +167,12 @@ public class Element extends Item {
     private final static Long INT32_MAX_VALUE = Long.valueOf(2147483647L);
     private final static Long UINT32_MIN_VALUE = Long.valueOf(0L);
     private final static Long UINT32_MAX_VALUE = Long.valueOf(4294967295L);
+
+    private static final BigInteger BIGINT_MIN = BigInteger.ZERO;
+    private static final BigInteger BIGINT_MAX = BigInteger.ONE.shiftLeft(1024).subtract(BigInteger.ONE);
+
+    private static final BigInteger UINT64_MIN = BigInteger.ZERO;
+    private static final BigInteger UINT64_MAX = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 
     private final static String VALUE_INVALID = " value invalid";
     private final static String VALUE_TOO_LOW = " value is below protocol minimum";
@@ -179,10 +202,10 @@ public class Element extends Item {
             .addAttribute("desc", getRciDescription())
             .addAttribute("type", type.toString())
             .addAttribute("access", Objects.toString(access, null))
-            .addAttribute("min", Objects.toString(min, null))
-            .addAttribute("max", Objects.toString(max, null))
+            .addAttribute("min", getValueNormalized(min))
+            .addAttribute("max", getValueNormalized(max))
             .addAttribute("units", Objects.toString(units, null))
-            .addAttribute("default", Objects.toString(def, null));
+            .addAttribute("default", getValueNormalized(def));
 
         regex.addAttributes(e);
         e.addAttribute("bin_id", id.toString());
@@ -208,6 +231,32 @@ public class Element extends Item {
         }
 
         return wrapConditional(e);
+    }
+
+    private String getValueNormalized(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        // Normalize hex values.
+        if (isHexType()) {
+            if (isZeroHexType()) {
+                if (value.startsWith("0X") || value.startsWith("0x")) {
+                    return "0x" + value.substring(2).toUpperCase();
+                } else {
+                    return "0x" + value.toUpperCase();
+                }
+            } else {
+                if (value.startsWith("0X") || value.startsWith("0x")) {
+                    return value.substring(2).toUpperCase();
+                } else {
+                    return value.toUpperCase();
+                }
+            }
+        }
+
+        // For other types, return the value as is
+        return value;
     }
 
     public Type setType(String theType) throws Exception {
@@ -372,6 +421,11 @@ public class Element extends Item {
         case HEX32:
         case X_HEX32:
         case FLOAT:
+        case UINT64:
+        case HEX64:
+        case X_HEX64:
+        case BIGINT:
+        case HEXBLOB:
             return def;
 
         case ENUM:
@@ -444,6 +498,39 @@ public class Element extends Item {
             }
 
             if (value > max) {
+                throw new Exception(which + VALUE_TOO_HIGH);
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new Exception(which + VALUE_INVALID);
+        }
+    }
+
+    private boolean isHexType() {
+        return type == Type.HEX32 || type == Type.X_HEX32 || type == Type.HEXBLOB || type == Type.HEX64 || type == Type.X_HEX64;
+    }
+
+    private boolean isZeroHexType() {
+        return type == Type.X_HEX32 || type == Type.X_HEX64;
+    }
+
+    private BigInteger toBigInteger(String string, BigInteger min, BigInteger max, BigInteger def, String which) throws Exception {
+        if (string == null)
+            return def;
+
+        boolean has_0x_prefix = string.startsWith("0x") || string.startsWith("0X");
+        boolean is_hex = has_0x_prefix || isHexType();
+        String trimmed = has_0x_prefix ? string.substring(2).trim() : string.trim();
+        int radix = is_hex ? 16 : 10;
+
+        try {
+            BigInteger value = new BigInteger(trimmed, radix);
+
+            if (value.compareTo(min) < 0) {
+                throw new Exception(which + VALUE_TOO_LOW);
+            }
+
+            if (value.compareTo(max) > 0) {
                 throw new Exception(which + VALUE_TOO_HIGH);
             }
             return value;
@@ -593,13 +680,91 @@ public class Element extends Item {
                 }
                 break;
             }
+        case UINT32:
+        case HEX32:
+        case X_HEX32:
+            {
+                Long minValue = toLong(min, UINT32_MIN_VALUE, UINT32_MAX_VALUE, UINT32_MIN_VALUE, "min");
+                Long maxValue = toLong(max, UINT32_MIN_VALUE, UINT32_MAX_VALUE, UINT32_MAX_VALUE, "max");
+                if (minValue > maxValue) {
+                    throw new Exception(MIN_GREATER_THAN_MAX);
+                }
 
+                if (def != null) {
+                    Long defValue = toLong(def, UINT32_MIN_VALUE , UINT32_MAX_VALUE, null, "default");
+                    assert defValue != null;
+
+                    boolean good = (defValue >= minValue) && (defValue <= maxValue);
+                    if (!good) {
+                        throw new Exception(DEF_OUT_OF_RANGE);
+                    }
+                }
+                break;
+            }
+        case UINT64:
+        case HEX64:
+        case X_HEX64:
+            {
+                BigInteger minValue = toBigInteger(min, UINT64_MIN, UINT64_MAX, UINT64_MIN, "min");
+                BigInteger maxValue = toBigInteger(max, UINT64_MIN, UINT64_MAX, UINT64_MAX, "max");
+                if (minValue.compareTo(maxValue) > 0) {
+                    throw new Exception(MIN_GREATER_THAN_MAX);
+                }
+
+                if (def != null) {
+                    BigInteger defValue = toBigInteger(def, UINT64_MIN, UINT64_MAX, null, "default");
+                    assert defValue != null;
+
+                    boolean good = (defValue.compareTo(minValue) >= 0) && (defValue.compareTo(maxValue) <= 0);
+                    if (!good) {
+                        throw new Exception(DEF_OUT_OF_RANGE);
+                    }
+                }
+                break;
+            }
+        case BIGINT:
+            {
+                BigInteger minValue = toBigInteger(min, BIGINT_MIN, BIGINT_MAX, BIGINT_MIN, "min");
+                BigInteger maxValue = toBigInteger(max, BIGINT_MIN, BIGINT_MAX, BIGINT_MAX, "max");
+                if (minValue.compareTo(maxValue) > 0) {
+                    throw new Exception(MIN_GREATER_THAN_MAX);
+                }
+
+                if (def != null) {
+                    BigInteger defValue = toBigInteger(def, BIGINT_MIN, BIGINT_MAX, null, "default");
+                    assert defValue != null;
+
+                    boolean good = (defValue.compareTo(minValue) >= 0) && (defValue.compareTo(maxValue) <= 0);
+                    if (!good) {
+                        throw new Exception(DEF_OUT_OF_RANGE);
+                    }
+                }
+                break;
+            }
+        case HEXBLOB:
+            {
+                Long minValue = toLong(min, INT32_MIN_VALUE, INT32_MAX_VALUE, INT32_MIN_VALUE, "min");
+                Long maxValue = toLong(max, INT32_MIN_VALUE, INT32_MAX_VALUE, INT32_MAX_VALUE, "max");
+                if (minValue > maxValue) {
+                    throw new Exception(MIN_GREATER_THAN_MAX);
+                }
+
+                if (def != null) {
+                    Long defValueLength = (long) def.replace("0x", "").replace("0X", "").length();
+                    // Do not check min length for HEXBLOB. Problem arises when default value is "0x" or "0X"
+                    // and min is set to 1 byte.
+                    if (defValueLength / 2 < 0 || defValueLength / 2 > maxValue) {
+                        throw new Exception(DEF_OUT_OF_RANGE);
+                    }
+                }
+                break;
+            }
         default:
             {
                 if (supportsMinMax.contains(type)) {
-                    Long minValue = toLong(min, UINT32_MIN_VALUE, UINT32_MAX_VALUE, UINT32_MIN_VALUE, "min");
-                    Long maxValue = toLong(max, UINT32_MIN_VALUE, UINT32_MAX_VALUE, UINT32_MAX_VALUE, "max");
-                    if (minValue > maxValue) {
+                    BigInteger minValue = toBigInteger(min, BIGINT_MIN, BIGINT_MAX, BIGINT_MIN, "min");
+                    BigInteger maxValue = toBigInteger(max, BIGINT_MIN, BIGINT_MAX, BIGINT_MAX , "max");
+                    if (minValue.compareTo(maxValue) > 0) {
                         throw new Exception(MIN_GREATER_THAN_MAX);
                     }
 
@@ -609,22 +774,9 @@ public class Element extends Item {
                     case PASSWORD:
                         if (def != null) {
                             Long length = (long) def.length();
+                            BigInteger lengthBI = BigInteger.valueOf(length);
 
-                            boolean good = (length >= minValue) && (length <= maxValue);
-                            if (!good) {
-                                throw new Exception(DEF_OUT_OF_RANGE);
-                            }
-                        }
-                        break;
-
-                    case UINT32:
-                    case HEX32:
-                    case X_HEX32:
-                        if (def != null) {
-                            Long defValue = toLong(def, UINT32_MIN_VALUE, UINT32_MAX_VALUE, null, "default");
-                            assert defValue != null;
-
-                            boolean good = (defValue >= minValue) && (defValue <= maxValue);
+                            boolean good = (lengthBI.compareTo(minValue) >= 0) && (lengthBI.compareTo(maxValue) <= 0);
                             if (!good) {
                                 throw new Exception(DEF_OUT_OF_RANGE);
                             }

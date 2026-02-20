@@ -69,6 +69,9 @@ public class TokenScanner {
 
             if ((tokenScanner != null) && (tokenScanner.hasNext())) {
                 aWord = tokenScanner.next();
+                if (aWord != null) {
+                    aWord = aWord.trim();
+                }
             }
 
             if (!lineScanner.hasNextLine()) {
