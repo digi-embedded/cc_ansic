@@ -176,7 +176,7 @@ public class Parser {
         }
 
         if (name.length() > config.getMaxNameLength()) {
-            throw new Exception("The name > the maximum length limited " + config.getMaxNameLength());
+            throw new Exception("The name " + name + " exceeds the maximum length limited " + config.getMaxNameLength());
         }
 
         /* Only allow alphanumeric, hyphen, and underscore */
@@ -348,21 +348,6 @@ public class Parser {
         return access;
     }
 
-    private static String getMinMax() throws Exception {
-        String mvalue = null;
-
-        if (tokenScanner.hasToken("\\(.*"))
-            mvalue = Integer.toString(getMathExpression());
-        else
-            mvalue = tokenScanner.getToken();
-
-        if (mvalue == null) {
-            throw new Exception("Missing min or max value");
-        }
-
-        return mvalue;
-    }
-
     private static String getString() throws Exception {
         String string;
 
@@ -495,9 +480,17 @@ public class Parser {
                 } else if (token.equalsIgnoreCase("access")) {
                     element.setAccess(getAccess());
                 } else if (token.equalsIgnoreCase("min")) {
-                    element.setMin(getMinMax());
+                    if (!tokenScanner.hasToken()) {
+                        throw new Exception("Missing value after min");
+                    }
+                    String value = tokenScanner.getToken();
+                    element.setMin(value);
                 } else if (token.equalsIgnoreCase("max")) {
-                    element.setMax(getMinMax());
+                    if (!tokenScanner.hasToken()) {
+                        throw new Exception("Missing value after max");
+                    }
+                    String value = tokenScanner.getToken();
+                    element.setMax(value);
                 } else if (token.equalsIgnoreCase("default")) {
                     element.setDefault(getDefault());
                 } else if (token.equalsIgnoreCase("units")) {
