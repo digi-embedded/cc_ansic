@@ -15,6 +15,6 @@ public class Reference extends Item {
             .addAttribute("name", name)
             .addAttribute("desc", getDescription());
 
-        return e;
+        return wrapConditional(e);
     }
 }

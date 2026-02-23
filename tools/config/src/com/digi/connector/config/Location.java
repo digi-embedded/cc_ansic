@@ -59,6 +59,21 @@ public class Location {
 
         if (type != anchor.getType()) {
             throw new Exception("Unable to make relative path: setting/state mismatch");
+            /* Uncoment when support for cross setting/state relative path is supported.
+            // Cross-type reference: produce absolute path /<type>/<group>/1/.../<element>
+            Vector<String> absolute = new Vector<>();
+            absolute.add("");
+            absolute.add(type.toLowerName());
+            final int size = data.size();
+            final int last = size - 1;
+            for (int i = 0; i < size; i++) {
+                absolute.add(data.get(i));
+                if (i != last) {
+                    absolute.add("1");
+                }
+            }
+            return String.join("/", absolute);
+            */
         }
 
         if (data.equals(anchor.data)) {

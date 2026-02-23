@@ -73,10 +73,11 @@ public class Condition {
     }
 
     public org.dom4j.Element wrapper(final Location current) throws Exception {
+        org.dom4j.Element wrapper = org.dom4j.DocumentHelper.createElement("conditional");
+
         // <conditional type="reference" name="../../ip_version" value="ipv4">
         // <conditional type="reference" name="../protocol" operation="regex" regex_pattern="(auto|chap|pap)">
-        org.dom4j.Element wrapper = org.dom4j.DocumentHelper.createElement("conditional")
-            .addAttribute("type", "reference")
+        wrapper.addAttribute("type", "reference")
             .addAttribute("name", source.relativeTo(current))
             .addAttribute("operation", type.toString());
 

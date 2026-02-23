@@ -299,7 +299,7 @@ public class Element extends Item {
         return false;
     }
 
-    public void addValue(Config config, String valueName, String description, String helpDescription) throws Exception {
+    public Value addValue(Config config, String valueName, String description, String helpDescription) throws Exception {
         if (type == null)
             throw new Exception("Missing type of enum or ref_enum on element: " + name);
 
@@ -318,6 +318,7 @@ public class Element extends Item {
 
         Value value = new Value(valueName, description, helpDescription);
         values.add(value);
+        return value;
     }
 
     private boolean containsRef(final String needle) {
@@ -329,7 +330,7 @@ public class Element extends Item {
         return false;
     }
 
-    public void addRef(Config config, String refName, String description, String helpDescription) throws Exception {
+    public Reference addRef(Config config, String refName, String description, String helpDescription) throws Exception {
         if (type == null)
             throw new Exception("Missing type enum on element: " + name);
 
@@ -343,6 +344,7 @@ public class Element extends Item {
         config.nameLengthSeen(ItemType.VALUES, refName.length());
 
         refs.add(ref);
+        return ref;
     }
 
     private void ExceptMissingOrBad(String newValue, String name) throws IOException {

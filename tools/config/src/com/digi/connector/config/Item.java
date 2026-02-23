@@ -1,6 +1,8 @@
 package com.digi.connector.config;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class Item {
 
@@ -9,7 +11,7 @@ public abstract class Item {
     protected final String description;
     protected final String helpDescription;
     protected AccessType access;
-    protected org.dom4j.Element wrapper;
+    protected List<org.dom4j.Element> wrappers = new ArrayList<>();
 
     public enum AccessType {
         READ_ONLY, WRITE_ONLY, READ_WRITE;
@@ -78,22 +80,36 @@ public abstract class Item {
     }
 
     public void setCondition(final String name, final Location current, final Config config) throws Exception {
-        assert wrapper == null : "Error attempting to overwrite condition";
-
-        final Condition condition = config.getTable(current.getType()).conditions().get(name);
+        Condition condition = config.getTable(current.getType()).conditions().get(name);
+        if (condition == null) {
+            for (Group.Type type : Group.Type.values()) {
+                if (type != current.getType()) {
+                    condition = config.getTable(type).conditions().get(name);
+                    if (condition != null) break;
+                }
+            }
+        }
         if (condition == null) {
             throw new Exception("Condition not found: " + name);
         }
 
-        wrapper = condition.wrapper(current);
+        // Add each condition wrapper to the list independently
+        wrappers.add(condition.wrapper(current));
     }
 
     public org.dom4j.Element wrapConditional(org.dom4j.Element element) {
-        if (wrapper == null)
+        if (wrappers.isEmpty())
             return element;
 
-        wrapper.add(element);
-        return wrapper;
+        // Build nested structure from innermost to outermost
+        // Clone each wrapper to avoid sharing DOM elements between different values
+        org.dom4j.Element current = element;
+        for (int i = wrappers.size() - 1; i >= 0; i--) {
+            org.dom4j.Element wrapper = (org.dom4j.Element) wrappers.get(i).clone();
+            wrapper.add(current);
+            current = wrapper;
+        }
+        return current;
     }
 
     abstract org.dom4j.Element asElement(Integer id);

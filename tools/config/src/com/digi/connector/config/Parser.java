@@ -392,8 +392,8 @@ public class Parser {
 
     private static final void processCondition(Config config) throws Exception {
         /*
-         *  condition NAME source LOCATION_OF_VALUE_TO_MATCH operation regex pattern PATTERN_TO_MATCH [case {match|ignore}]
-         *  condition NAME source LOCATION_OF_VALUE_TO_MATCH [operation equals] value VALUE_TO_MATCH
+         * syntax for parsing condition: condition <name> source <source> [operation
+         * {equals|regex}] [value <value>] [pattern <pattern>] [case {match|ignore}]
          */
         conditionLineNumber = tokenScanner.getLineNumber();
 
@@ -435,12 +435,12 @@ public class Parser {
 
         Location location = new Location(source);
         Condition condition = null;
+
         switch (operation) {
         case EQUALS:
             if (value == null) {
                 throw new Exception("Missing value in <condition>");
             }
-
             condition = new Condition(name, location, value);
             break;
 
@@ -448,7 +448,6 @@ public class Parser {
             if (pattern == null) {
                 throw new Exception("Missing pattern in <condition>");
             }
-
             condition = new Condition(name, location, pattern, regexCase);
             break;
         }
@@ -502,9 +501,29 @@ public class Parser {
                 } else if (token.equalsIgnoreCase("syntax")) {
                     element.setRegexSyntax(getString());
                 } else if (token.equalsIgnoreCase("value")) {
-                    element.addValue(config, getValueName(element.getType()), getDescription(), getHelpDescription());
+                    Value value = element.addValue(config, getValueName(element.getType()), getDescription(), getHelpDescription());
+                    // Check if this value has conditions (can have multiple)
+                    while (tokenScanner.hasToken()) {
+                        String nextToken = tokenScanner.getToken();
+                        if (nextToken.equalsIgnoreCase("condition")) {
+                            value.setCondition(getName(), current, config);
+                        } else {
+                            tokenScanner.pushbackToken(nextToken);
+                            break;
+                        }
+                    }
                 } else if (token.equalsIgnoreCase("ref")) {
-                    element.addRef(config, getRefName(), getDescription(), getHelpDescription());
+                    Reference ref = element.addRef(config, getRefName(), getDescription(), getHelpDescription());
+                    // Check if this ref has conditions (can have multiple)
+                    while (tokenScanner.hasToken()) {
+                        String nextToken = tokenScanner.getToken();
+                        if (nextToken.equalsIgnoreCase("condition")) {
+                            ref.setCondition(getName(), current, config);
+                        } else {
+                            tokenScanner.pushbackToken(nextToken);
+                            break;
+                        }
+                    }
                 } else if (token.equalsIgnoreCase("condition")) {
                     element.setCondition(getName(), current, config);
                 } else if (token.startsWith("#")) {

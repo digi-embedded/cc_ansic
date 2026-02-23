@@ -17,6 +17,6 @@ public class Value extends Item {
             e.addAttribute("bin_id", id.toString());
         }
 
-        return e;
+        return wrapConditional(e);
     }
 }
