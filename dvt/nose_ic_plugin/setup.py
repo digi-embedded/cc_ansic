@@ -14,7 +14,7 @@ setup(
     description = 'Plugin to pass in iDigi Credentials and Device ID to iDigi Connector Tests.',
     license = 'For Digi Internal Use Only',
     py_modules = ['ic_plugin', 'ic_testcase', 'build_plugin' ], 
-    install_requires=['requests == 0.14.2', 'py-dom-xpath'],
+    install_requires=['requests == 2.32.0', 'py-dom-xpath'],
     entry_points = {
         'nose.plugins.0.10': [
             'ic = ic_plugin:ICPlugin',
